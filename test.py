@@ -28,15 +28,15 @@ def analyze_surface_cleanliness(image):
     status = "Clean" if edge_density < 2.0 else "Dirty"
     return status, edge_density, edges
 
-# Function to generate a summary table with borders and alignment
+# Function to generate a summary table with full borders and scoring
 def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_percentage, save_path=None):
-    fig, ax = plt.subplots(figsize=(12, len(image_data) * 2.5 + 1))  # Extra space for scoring
+    fig, ax = plt.subplots(figsize=(12, len(image_data) * 2.5 + 1))  # Extra space for scoring row
     ax.axis("off")
     
     # Table headers
     headers = ["Image", "File Name", "Surface Condition", "Edge Density (%)", "Conclusion"]
     n_cols = len(headers)
-    n_rows = len(image_data) + 2  # Extra row for scoring
+    n_rows = len(image_data) + 2  # Include 1 extra row for scoring
 
     # Add headers to the table
     for col, header in enumerate(headers):
@@ -47,20 +47,15 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
     
     # Add image data to the table
     for row, (file_name, status, edge_density, img) in enumerate(image_data):
-        # Draw borders for each row
+        # Row borders
         ax.plot([0, 1], [1 - ((row + 1) / n_rows), 1 - ((row + 1) / n_rows)], color="black", lw=1)  # Horizontal lines
         for col in range(1, n_cols):
             ax.plot([col / n_cols, col / n_cols], [0, 1], color="black", lw=1)  # Vertical lines
-        
-        # Draw a border around the entire table
-        if row == len(image_data) - 1:
-            ax.plot([0, 1], [0, 0], color="black", lw=1)  # Bottom border
-            ax.plot([0, 0], [0, 1], color="black", lw=1)  # Left border
-            ax.plot([1, 1], [0, 1], color="black", lw=1)  # Right border
 
+        # Add images and text to the table cells
         thumbnail = cv2.resize(img, (80, 80))  # Ensure the image fits in the cell
         image_box = OffsetImage(cv2.cvtColor(thumbnail, cv2.COLOR_BGR2RGB), zoom=1)
-        ab = AnnotationBbox(image_box, (0.1, 1 - ((row + 1 + 0.5) / n_rows)), frameon=False)
+        ab = AnnotationBbox(image_box, ((0.5 / n_cols), 1 - ((row + 1 + 0.5) / n_rows)), frameon=False)
         ax.add_artist(ab)
 
         # File name
@@ -73,13 +68,32 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
         conclusion = "Well-maintained" if status == "Clean" else "Requires cleaning"
         ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), conclusion, fontsize=12, ha="center", va="center")
     
-    # Add scoring row
+    # Add scoring row at the bottom
     scoring_text = f"Total Images: {len(image_data)} | Clean Images: {clean_count} | Dirty Images: {dirty_count} | Cleanliness Percentage: {cleanliness_percentage:.2f}%"
-    ax.text(0.5, 0, scoring_text, fontsize=14, ha="center", va="center", color="black", bbox=dict(boxstyle="round,pad=0.5", edgecolor="black", facecolor="lightgray"))
+    ax.text(0.5, 0.5 / n_rows, scoring_text, fontsize=14, ha="center", va="center", color="black", 
+            bbox=dict(boxstyle="round,pad=0.5", edgecolor="black", facecolor="lightgray"))
 
+    # Add full outer border
+    ax.plot([0, 1], [1, 1], color="black", lw=2)  # Top border
+    ax.plot([0, 1], [0, 0], color="black", lw=2)  # Bottom border
+    ax.plot([0, 0], [0, 1], color="black", lw=2)  # Left border
+    ax.plot([1, 1], [0, 1], color="black", lw=2)  # Right border
+    
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path, bbox_inches="tight")
+    return fig
+
+# Function to generate cleanliness trends chart
+def generate_cleanliness_chart(clean_count, dirty_count):
+    categories = ["Clean", "Dirty"]
+    counts = [clean_count, dirty_count]
+
+    fig, ax = plt.subplots()
+    bars = ax.bar(categories, counts, color=["green", "red"])
+    ax.set_title("Cleanliness Trends", fontsize=16, weight="bold")
+    ax.set_ylabel("Number of Images", fontsize=12)
+    ax.bar_label(bars, fmt='%d', fontsize=12)  # Add count labels on bars
     return fig
 
 # Streamlit App
@@ -121,7 +135,7 @@ if uploaded_files:
 
         # Show the uploaded image
         with col1:
-            st.image(img, caption=file_name, use_container_width=True, channels="BGR")  # Replaced deprecated parameter
+            st.image(img, caption=file_name, use_container_width=True, channels="BGR")
 
         # Show analysis details
         with col2:
@@ -153,3 +167,8 @@ if uploaded_files:
     st.write(f"- **Clean Images:** {clean_images}")
     st.write(f"- **Dirty Images:** {dirty_images}")
     st.write(f"- **Cleanliness Percentage:** {cleanliness_percentage:.2f}%")
+
+    # Generate and display cleanliness trends chart
+    st.write("### Cleanliness Trends Chart:")
+    trends_chart = generate_cleanliness_chart(clean_images, dirty_images)
+    st.pyplot(trends_chart)
