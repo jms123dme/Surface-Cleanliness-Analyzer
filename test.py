@@ -41,7 +41,7 @@ def generate_summary_table(image_data, save_path=None):
     # Add headers to the table
     for col, header in enumerate(headers):
         ax.text(
-            (col + 0.5) / n_cols, 1 - 0.5 / n_rows, header, weight="bold", fontsize=12, ha="center", va="center",
+            (col + 0.5) / n_cols, 1 - 0.5 / n_rows, header, weight="bold", fontsize=14, ha="center", va="center",
             bbox=dict(boxstyle="round,pad=0.5", facecolor="#40466e", edgecolor="black"), color="white"
         )
     
@@ -52,20 +52,20 @@ def generate_summary_table(image_data, save_path=None):
         for col in range(1, n_cols):
             ax.plot([col / n_cols, col / n_cols], [0, 1], color="black", lw=1)  # Vertical lines
         
-        thumbnail = cv2.resize(img, (50, 50))
-        image_box = OffsetImage(cv2.cvtColor(thumbnail, cv2.COLOR_BGR2RGB), zoom=0.8)
+        thumbnail = cv2.resize(img, (80, 80))  # Ensure the image fits in the cell
+        image_box = OffsetImage(cv2.cvtColor(thumbnail, cv2.COLOR_BGR2RGB), zoom=1)
         ab = AnnotationBbox(image_box, (0.1, 1 - ((row + 1 + 0.5) / n_rows)), frameon=False)
         ax.add_artist(ab)
 
         # File name
-        ax.text((1 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), file_name, fontsize=10, ha="center", va="center")
+        ax.text((1 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), file_name, fontsize=12, ha="center", va="center")
         # Surface condition
-        ax.text((2 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), status, fontsize=10, ha="center", va="center")
+        ax.text((2 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), status, fontsize=12, ha="center", va="center")
         # Edge density
-        ax.text((3 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), f"{edge_density:.2f}%", fontsize=10, ha="center", va="center")
+        ax.text((3 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), f"{edge_density:.2f}%", fontsize=12, ha="center", va="center")
         # Conclusion
         conclusion = "Well-maintained" if status == "Clean" else "Requires cleaning"
-        ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), conclusion, fontsize=10, ha="center", va="center")
+        ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), conclusion, fontsize=12, ha="center", va="center")
     
     plt.tight_layout()
     if save_path:
@@ -105,7 +105,7 @@ if uploaded_files:
 
         # Show the uploaded image
         with col1:
-            st.image(img, caption=file_name, use_column_width=True, channels="BGR")
+            st.image(img, caption=file_name, use_container_width=True, channels="BGR")  # Replaced deprecated parameter
 
         # Show analysis details
         with col2:
