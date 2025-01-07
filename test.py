@@ -28,8 +28,8 @@ def analyze_surface_cleanliness(image):
     status = "Clean" if edge_density < 2.0 else "Dirty"
     return status, edge_density, edges
 
-# Function to generate a summary table
-def generate_summary_table(image_data):
+# Function to generate a summary table with borders and alignment
+def generate_summary_table(image_data, save_path=None):
     fig, ax = plt.subplots(figsize=(12, len(image_data) * 2.5))
     ax.axis("off")
     
@@ -40,11 +40,18 @@ def generate_summary_table(image_data):
 
     # Add headers to the table
     for col, header in enumerate(headers):
-        ax.text((col + 0.5) / n_cols, 1 - 0.5 / n_rows, header, weight="bold", fontsize=12, ha="center", va="center",
-                bbox=dict(boxstyle="round", facecolor="#40466e", edgecolor="white"), color="white")
+        ax.text(
+            (col + 0.5) / n_cols, 1 - 0.5 / n_rows, header, weight="bold", fontsize=12, ha="center", va="center",
+            bbox=dict(boxstyle="round,pad=0.5", facecolor="#40466e", edgecolor="black"), color="white"
+        )
     
     # Add image data to the table
     for row, (file_name, status, edge_density, img) in enumerate(image_data):
+        # Draw borders
+        ax.plot([0, 1], [1 - ((row + 1) / n_rows), 1 - ((row + 1) / n_rows)], color="black", lw=1)  # Horizontal lines
+        for col in range(1, n_cols):
+            ax.plot([col / n_cols, col / n_cols], [0, 1], color="black", lw=1)  # Vertical lines
+        
         thumbnail = cv2.resize(img, (50, 50))
         image_box = OffsetImage(cv2.cvtColor(thumbnail, cv2.COLOR_BGR2RGB), zoom=0.8)
         ab = AnnotationBbox(image_box, (0.1, 1 - ((row + 1 + 0.5) / n_rows)), frameon=False)
@@ -61,6 +68,8 @@ def generate_summary_table(image_data):
         ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), conclusion, fontsize=10, ha="center", va="center")
     
     plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, bbox_inches="tight")
     return fig
 
 # Streamlit App
@@ -108,6 +117,16 @@ if uploaded_files:
 
     # Generate and display the summary table
     st.write("### Summary Table:")
-    summary_fig = generate_summary_table(image_data)
+    summary_path = os.path.join(UPLOAD_FOLDER, "summary_table.png")
+    summary_fig = generate_summary_table(image_data, save_path=summary_path)
     st.pyplot(summary_fig)
 
+    # Add download button for the summary table
+    with open(summary_path, "rb") as f:
+        summary_data = f.read()
+    st.download_button(
+        label="Download Summary Table as PNG",
+        data=summary_data,
+        file_name="summary_table.png",
+        mime="image/png"
+    )
