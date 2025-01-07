@@ -28,15 +28,28 @@ def analyze_surface_cleanliness(image):
     status = "Clean" if edge_density < 2.0 else "Dirty"
     return status, edge_density, edges
 
-# Function to generate a summary table with full borders and scoring
-def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_percentage, save_path=None):
-    fig, ax = plt.subplots(figsize=(12, len(image_data) * 2.5 + 1))  # Extra space for scoring row
+# Function to generate a cleanliness trends chart
+def generate_cleanliness_chart(clean_count, dirty_count):
+    categories = ["Clean", "Dirty"]
+    counts = [clean_count, dirty_count]
+
+    fig, ax = plt.subplots(figsize=(6, 4))  # Chart size
+    bars = ax.bar(categories, counts, color=["green", "red"])
+    ax.set_title("Cleanliness Trends", fontsize=16, weight="bold")
+    ax.set_ylabel("Number of Images", fontsize=12)
+    ax.bar_label(bars, fmt='%d', fontsize=12)  # Add count labels on bars
+    plt.tight_layout()
+    return fig
+
+# Function to generate a summary table with embedded charts
+def generate_summary_table_with_chart(image_data, clean_count, dirty_count, cleanliness_percentage, save_path=None):
+    fig, ax = plt.subplots(figsize=(12, len(image_data) * 2.5 + 5))  # Extra space for scoring row and chart
     ax.axis("off")
     
     # Table headers
     headers = ["Image", "File Name", "Surface Condition", "Edge Density (%)", "Conclusion"]
     n_cols = len(headers)
-    n_rows = len(image_data) + 2  # Include 1 extra row for scoring
+    n_rows = len(image_data) + 3  # Include 1 extra row for scoring and 1 for the chart
 
     # Add headers to the table
     for col, header in enumerate(headers):
@@ -79,21 +92,20 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
     ax.plot([0, 0], [0, 1], color="black", lw=2)  # Left border
     ax.plot([1, 1], [0, 1], color="black", lw=2)  # Right border
     
+    # Add cleanliness trends chart below the table
+    chart_fig = generate_cleanliness_chart(clean_count, dirty_count)
+    chart_canvas = chart_fig.canvas
+    chart_canvas.draw()
+    chart_img = np.frombuffer(chart_canvas.tostring_rgb(), dtype=np.uint8)
+    chart_img = chart_img.reshape(chart_canvas.get_width_height()[::-1] + (3,))
+    plt.close(chart_fig)  # Close the chart figure to avoid overlap
+    
+    # Add the chart as an image to the bottom of the table
+    ax.imshow(chart_img, extent=(0, 1, -1, 0))  # Add chart below the table as an image
+
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path, bbox_inches="tight")
-    return fig
-
-# Function to generate cleanliness trends chart
-def generate_cleanliness_chart(clean_count, dirty_count):
-    categories = ["Clean", "Dirty"]
-    counts = [clean_count, dirty_count]
-
-    fig, ax = plt.subplots()
-    bars = ax.bar(categories, counts, color=["green", "red"])
-    ax.set_title("Cleanliness Trends", fontsize=16, weight="bold")
-    ax.set_ylabel("Number of Images", fontsize=12)
-    ax.bar_label(bars, fmt='%d', fontsize=12)  # Add count labels on bars
     return fig
 
 # Streamlit App
@@ -128,47 +140,18 @@ if uploaded_files:
     dirty_images = total_images - clean_images
     cleanliness_percentage = (clean_images / total_images) * 100 if total_images > 0 else 0
 
-    # Display results
-    st.write("### Analysis Results:")
-    for file_name, status, edge_density, img in image_data:
-        col1, col2 = st.columns([1, 3])
-
-        # Show the uploaded image
-        with col1:
-            st.image(img, caption=file_name, use_container_width=True, channels="BGR")
-
-        # Show analysis details
-        with col2:
-            st.write(f"**File Name:** {file_name}")
-            st.write(f"**Surface Condition:** {status}")
-            st.write(f"**Edge Density (%):** {edge_density:.2f}")
-            conclusion = "Well-maintained" if status == "Clean" else "Requires cleaning"
-            st.write(f"**Conclusion:** {conclusion}")
-
-    # Generate and display the summary table
-    st.write("### Summary Table:")
-    summary_path = os.path.join(UPLOAD_FOLDER, "summary_table.png")
-    summary_fig = generate_summary_table(image_data, clean_images, dirty_images, cleanliness_percentage, save_path=summary_path)
+    # Generate and display the summary table with embedded chart
+    st.write("### Summary Report:")
+    summary_path = os.path.join(UPLOAD_FOLDER, "summary_table_with_chart.png")
+    summary_fig = generate_summary_table_with_chart(image_data, clean_images, dirty_images, cleanliness_percentage, save_path=summary_path)
     st.pyplot(summary_fig)
 
     # Add download button for the summary table
     with open(summary_path, "rb") as f:
         summary_data = f.read()
     st.download_button(
-        label="Download Summary Table as PNG",
+        label="Download Summary Table with Chart as PNG",
         data=summary_data,
-        file_name="summary_table.png",
+        file_name="summary_table_with_chart.png",
         mime="image/png"
     )
-
-    # Display scoring in Streamlit
-    st.write("### Scoring:")
-    st.write(f"- **Total Images:** {total_images}")
-    st.write(f"- **Clean Images:** {clean_images}")
-    st.write(f"- **Dirty Images:** {dirty_images}")
-    st.write(f"- **Cleanliness Percentage:** {cleanliness_percentage:.2f}%")
-
-    # Generate and display cleanliness trends chart
-    st.write("### Cleanliness Trends Chart:")
-    trends_chart = generate_cleanliness_chart(clean_images, dirty_images)
-    st.pyplot(trends_chart)
