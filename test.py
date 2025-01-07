@@ -47,11 +47,17 @@ def generate_summary_table(image_data, save_path=None):
     
     # Add image data to the table
     for row, (file_name, status, edge_density, img) in enumerate(image_data):
-        # Draw borders
+        # Draw borders for each row
         ax.plot([0, 1], [1 - ((row + 1) / n_rows), 1 - ((row + 1) / n_rows)], color="black", lw=1)  # Horizontal lines
         for col in range(1, n_cols):
             ax.plot([col / n_cols, col / n_cols], [0, 1], color="black", lw=1)  # Vertical lines
         
+        # Draw a border around the entire table
+        if row == len(image_data) - 1:
+            ax.plot([0, 1], [0, 0], color="black", lw=1)  # Bottom border
+            ax.plot([0, 0], [0, 1], color="black", lw=1)  # Left border
+            ax.plot([1, 1], [0, 1], color="black", lw=1)  # Right border
+
         thumbnail = cv2.resize(img, (80, 80))  # Ensure the image fits in the cell
         image_box = OffsetImage(cv2.cvtColor(thumbnail, cv2.COLOR_BGR2RGB), zoom=1)
         ab = AnnotationBbox(image_box, (0.1, 1 - ((row + 1 + 0.5) / n_rows)), frameon=False)
@@ -66,6 +72,9 @@ def generate_summary_table(image_data, save_path=None):
         # Conclusion
         conclusion = "Well-maintained" if status == "Clean" else "Requires cleaning"
         ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), conclusion, fontsize=12, ha="center", va="center")
+    
+    # Draw the top border after headers are added
+    ax.plot([0, 1], [1, 1], color="black", lw=1)  # Top border
     
     plt.tight_layout()
     if save_path:
