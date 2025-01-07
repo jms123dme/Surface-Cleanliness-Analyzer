@@ -29,14 +29,14 @@ def analyze_surface_cleanliness(image):
     return status, edge_density, edges
 
 # Function to generate a summary table with borders and alignment
-def generate_summary_table(image_data, save_path=None):
-    fig, ax = plt.subplots(figsize=(12, len(image_data) * 2.5))
+def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_percentage, save_path=None):
+    fig, ax = plt.subplots(figsize=(12, len(image_data) * 2.5 + 1))  # Extra space for scoring
     ax.axis("off")
     
     # Table headers
     headers = ["Image", "File Name", "Surface Condition", "Edge Density (%)", "Conclusion"]
     n_cols = len(headers)
-    n_rows = len(image_data) + 1
+    n_rows = len(image_data) + 2  # Extra row for scoring
 
     # Add headers to the table
     for col, header in enumerate(headers):
@@ -73,9 +73,10 @@ def generate_summary_table(image_data, save_path=None):
         conclusion = "Well-maintained" if status == "Clean" else "Requires cleaning"
         ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), conclusion, fontsize=12, ha="center", va="center")
     
-    # Draw the top border after headers are added
-    ax.plot([0, 1], [1, 1], color="black", lw=1)  # Top border
-    
+    # Add scoring row
+    scoring_text = f"Total Images: {len(image_data)} | Clean Images: {clean_count} | Dirty Images: {dirty_count} | Cleanliness Percentage: {cleanliness_percentage:.2f}%"
+    ax.text(0.5, 0, scoring_text, fontsize=14, ha="center", va="center", color="black", bbox=dict(boxstyle="round,pad=0.5", edgecolor="black", facecolor="lightgray"))
+
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path, bbox_inches="tight")
@@ -107,6 +108,12 @@ if uploaded_files:
         status, edge_density, edges = analyze_surface_cleanliness(image)
         image_data.append((uploaded_file.name, status, edge_density, image))
 
+    # Calculate scoring
+    total_images = len(image_data)
+    clean_images = sum(1 for _, status, _, _ in image_data if status == "Clean")
+    dirty_images = total_images - clean_images
+    cleanliness_percentage = (clean_images / total_images) * 100 if total_images > 0 else 0
+
     # Display results
     st.write("### Analysis Results:")
     for file_name, status, edge_density, img in image_data:
@@ -127,7 +134,7 @@ if uploaded_files:
     # Generate and display the summary table
     st.write("### Summary Table:")
     summary_path = os.path.join(UPLOAD_FOLDER, "summary_table.png")
-    summary_fig = generate_summary_table(image_data, save_path=summary_path)
+    summary_fig = generate_summary_table(image_data, clean_images, dirty_images, cleanliness_percentage, save_path=summary_path)
     st.pyplot(summary_fig)
 
     # Add download button for the summary table
@@ -139,3 +146,10 @@ if uploaded_files:
         file_name="summary_table.png",
         mime="image/png"
     )
+
+    # Display scoring in Streamlit
+    st.write("### Scoring:")
+    st.write(f"- **Total Images:** {total_images}")
+    st.write(f"- **Clean Images:** {clean_images}")
+    st.write(f"- **Dirty Images:** {dirty_images}")
+    st.write(f"- **Cleanliness Percentage:** {cleanliness_percentage:.2f}%")
