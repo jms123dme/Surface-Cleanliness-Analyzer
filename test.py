@@ -5,6 +5,7 @@ import streamlit as st
 from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+import textwrap
 
 # Set up upload folder dynamically
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
@@ -38,6 +39,10 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
     n_cols = len(headers)
     n_rows = len(image_data) + 2  # Include 1 extra row for scoring
 
+    # Wrap text function
+    def wrap_text(text, width):
+        return "\n".join(textwrap.wrap(text, width))
+
     # Add headers to the table
     for col, header in enumerate(headers):
         ax.text(
@@ -58,19 +63,26 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
         ab = AnnotationBbox(image_box, ((0.5 / n_cols), 1 - ((row + 1 + 0.5) / n_rows)), frameon=False)
         ax.add_artist(ab)
 
-        # File name
-        ax.text((1 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), file_name, fontsize=12, ha="center", va="center")
+        # File name (wrapped text)
+        ax.text((1 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
+                wrap_text(file_name, 20), fontsize=12, ha="center", va="center")
+        
         # Surface condition
-        ax.text((2 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), status, fontsize=12, ha="center", va="center")
+        ax.text((2 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
+                wrap_text(status, 15), fontsize=12, ha="center", va="center")
+        
         # Edge density
-        ax.text((3 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), f"{edge_density:.2f}%", fontsize=12, ha="center", va="center")
+        ax.text((3 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
+                wrap_text(f"{edge_density:.2f}%", 10), fontsize=12, ha="center", va="center")
+        
         # Conclusion
         conclusion = "Well-maintained" if status == "Clean" else "Requires cleaning"
-        ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows), conclusion, fontsize=12, ha="center", va="center")
+        ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
+                wrap_text(conclusion, 15), fontsize=12, ha="center", va="center")
     
     # Add scoring row at the bottom
     scoring_text = f"Total Images: {len(image_data)} | Clean Images: {clean_count} | Dirty Images: {dirty_count} | Cleanliness Percentage: {cleanliness_percentage:.2f}%"
-    ax.text(0.5, 0.5 / n_rows, scoring_text, fontsize=14, ha="center", va="center", color="black", 
+    ax.text(0.5, 0.5 / n_rows, wrap_text(scoring_text, 60), fontsize=14, ha="center", va="center", color="black", 
             bbox=dict(boxstyle="round,pad=0.5", edgecolor="black", facecolor="lightgray"))
 
     # Add full outer border
