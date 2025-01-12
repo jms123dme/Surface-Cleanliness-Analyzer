@@ -6,14 +6,13 @@ from PIL import Image
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import textwrap
-from skimage.feature import local_binary_pattern
 
 
 # Set up upload folder dynamically
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Function to analyze surface cleanliness (basic and advanced)
+# Function to analyze surface cleanliness
 def analyze_surface_cleanliness(image):
     # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -27,14 +26,6 @@ def analyze_surface_cleanliness(image):
     # Calculate the percentage of detected edges
     edge_density = np.sum(edges > 0) / edges.size * 100
     
-    # Texture analysis using Local Binary Pattern (LBP)
-    radius = 3
-    n_points = 8 * radius
-    lbp = local_binary_pattern(gray, n_points, radius, method="uniform")
-    lbp_hist, _ = np.histogram(lbp.ravel(), bins=np.arange(0, n_points + 3), range=(0, n_points + 2))
-    lbp_hist = lbp_hist.astype("float")
-    lbp_hist /= lbp_hist.sum()  # Normalize
-    
     # Spot/blob detection
     detector = cv2.SimpleBlobDetector_create()
     keypoints = detector.detect(blurred)
@@ -47,17 +38,17 @@ def analyze_surface_cleanliness(image):
     analysis_details = {
         "Edge Density (%)": edge_density,
         "Blob Count": blob_count,
-        "LBP Uniformity": lbp_hist[1],
+        "Texture Complexity": "High" if edge_density > 5.0 else "Low",
     }
     return status, analysis_details, edges
 
-# Function to generate a summary table with full borders and detailed analysis
+# Function to generate a summary table with full borders and scoring
 def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_percentage, save_path=None):
     fig, ax = plt.subplots(figsize=(16, len(image_data) * 3 + 1))  # Adjust height dynamically based on rows
     ax.axis("off")
     
     # Table headers
-    headers = ["Image", "File Name", "Surface Condition", "Edge Density (%)", "Blob Count", "LBP Uniformity", "Conclusion"]
+    headers = ["Image", "File Name", "Surface Condition", "Edge Density (%)", "Blob Count", "Texture Complexity", "Conclusion"]
     n_cols = len(headers)
     n_rows = len(image_data) + 2  # Include 1 extra row for scoring
 
@@ -101,9 +92,9 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
         ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
                 wrap_text(str(analysis_details['Blob Count']), 10), fontsize=10, ha="center", va="center")
         
-        # LBP Uniformity
+        # Texture complexity
         ax.text((5 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
-                wrap_text(f"{analysis_details['LBP Uniformity']:.4f}", 10), fontsize=10, ha="center", va="center")
+                wrap_text(analysis_details['Texture Complexity'], 10), fontsize=10, ha="center", va="center")
         
         # Conclusion
         conclusion = "Well-maintained" if status == "Clean" else "Requires cleaning"
@@ -124,6 +115,18 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path, bbox_inches="tight")
+    return fig
+
+# Function to generate cleanliness trends chart
+def generate_cleanliness_chart(clean_count, dirty_count):
+    categories = ["Clean", "Dirty"]
+    counts = [clean_count, dirty_count]
+
+    fig, ax = plt.subplots()
+    bars = ax.bar(categories, counts, color=["green", "red"])
+    ax.set_title("Cleanliness Trends", fontsize=16, weight="bold")
+    ax.set_ylabel("Number of Images", fontsize=12)
+    ax.bar_label(bars, fmt='%d', fontsize=12)  # Add count labels on bars
     return fig
 
 # Streamlit App
@@ -158,7 +161,7 @@ if uploaded_files:
     dirty_images = total_images - clean_images
     cleanliness_percentage = (clean_images / total_images) * 100 if total_images > 0 else 0
 
-    # Generate and display the summary table
+    # Display results
     st.write("### Summary Table:")
     summary_path = os.path.join(UPLOAD_FOLDER, "summary_table.png")
     summary_fig = generate_summary_table(image_data, clean_images, dirty_images, cleanliness_percentage, save_path=summary_path)
