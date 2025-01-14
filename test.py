@@ -1,33 +1,38 @@
 import os
 import cv2
 import numpy as np
+import tensorflow as tf
 import streamlit as st
-from PIL import Image
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input, decode_predictions
+from tensorflow.keras.preprocessing.image import img_to_array
 import matplotlib.pyplot as plt
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import textwrap
+
+# Load the pre-trained MobileNetV2 model
+model = MobileNetV2(weights="imagenet")
 
 # Set up upload folder dynamically
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Function to analyze surface cleanliness
+# Function to analyze surface cleanliness using TensorFlow
 def analyze_surface_cleanliness(image):
-    # Convert to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # Apply GaussianBlur to reduce noise
-    blurred = cv2.GaussianBlur(gray, (11, 11), 0)
-    
-    # Apply edge detection using Canny
-    edges = cv2.Canny(blurred, threshold1=30, threshold2=100)
-    
-    # Calculate the percentage of detected edges
-    edge_density = np.sum(edges > 0) / edges.size * 100
-    
-    # Threshold for cleanliness
-    status = "Clean" if edge_density < 2.0 else "Dirty"
-    return status, edge_density, edges
+    # Resize the image for the TensorFlow model
+    resized_image = cv2.resize(image, (224, 224))
+    array_image = img_to_array(resized_image)
+    expanded_image = np.expand_dims(array_image, axis=0)
+    preprocessed_image = preprocess_input(expanded_image)
+
+    # Perform prediction
+    predictions = model.predict(preprocessed_image)
+    decoded_predictions = decode_predictions(predictions, top=1)[0]
+    label, confidence = decoded_predictions[0][1], decoded_predictions[0][2]
+
+    # Threshold for cleanliness based on confidence score
+    status = "Clean" if "clean" in label.lower() and confidence > 0.5 else "Dirty"
+    return status, confidence, label
 
 # Function to generate a summary table with full borders and scoring
 def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_percentage, save_path=None):
@@ -35,7 +40,7 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
     ax.axis("off")
     
     # Table headers
-    headers = ["Image", "File Name", "Surface Condition", "Edge Density (%)", "Conclusion"]
+    headers = ["Image", "File Name", "Surface Condition", "Confidence (%)", "Prediction Label", "Conclusion"]
     n_cols = len(headers)
     n_rows = len(image_data) + 2  # Include 1 extra row for scoring
 
@@ -51,7 +56,7 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
         )
     
     # Add image data to the table
-    for row, (file_name, status, edge_density, img) in enumerate(image_data):
+    for row, (file_name, status, confidence, label, img) in enumerate(image_data):
         # Row borders
         ax.plot([0, 1], [1 - ((row + 1) / n_rows), 1 - ((row + 1) / n_rows)], color="black", lw=1)  # Horizontal lines
         for col in range(1, n_cols):
@@ -71,13 +76,17 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
         ax.text((2 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
                 wrap_text(status, 15), fontsize=12, ha="center", va="center")
         
-        # Edge density
+        # Confidence score
         ax.text((3 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
-                wrap_text(f"{edge_density:.2f}%", 10), fontsize=12, ha="center", va="center")
+                wrap_text(f"{confidence * 100:.2f}%", 10), fontsize=12, ha="center", va="center")
+        
+        # Prediction label
+        ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
+                wrap_text(label, 15), fontsize=12, ha="center", va="center")
         
         # Conclusion
         conclusion = "Well-maintained" if status == "Clean" else "Requires cleaning"
-        ax.text((4 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
+        ax.text((5 + 0.5) / n_cols, 1 - ((row + 1 + 0.5) / n_rows),
                 wrap_text(conclusion, 15), fontsize=12, ha="center", va="center")
     
     # Add scoring row at the bottom
@@ -96,20 +105,8 @@ def generate_summary_table(image_data, clean_count, dirty_count, cleanliness_per
         plt.savefig(save_path, bbox_inches="tight")
     return fig
 
-# Function to generate cleanliness trends chart
-def generate_cleanliness_chart(clean_count, dirty_count):
-    categories = ["Clean", "Dirty"]
-    counts = [clean_count, dirty_count]
-
-    fig, ax = plt.subplots()
-    bars = ax.bar(categories, counts, color=["green", "red"])
-    ax.set_title("Cleanliness Trends", fontsize=16, weight="bold")
-    ax.set_ylabel("Number of Images", fontsize=12)
-    ax.bar_label(bars, fmt='%d', fontsize=12)  # Add count labels on bars
-    return fig
-
 # Streamlit App
-st.title("Surface Cleanliness Analyzer")
+st.title("Deep Learning-Based Surface Cleanliness Analyzer")
 
 # File upload section
 uploaded_files = st.file_uploader("Upload Images", accept_multiple_files=True, type=["jpg", "jpeg", "png", "bmp", "tiff"])
@@ -131,18 +128,18 @@ if uploaded_files:
             continue
 
         # Analyze image
-        status, edge_density, edges = analyze_surface_cleanliness(image)
-        image_data.append((uploaded_file.name, status, edge_density, image))
+        status, confidence, label = analyze_surface_cleanliness(image)
+        image_data.append((uploaded_file.name, status, confidence, label, image))
 
     # Calculate scoring
     total_images = len(image_data)
-    clean_images = sum(1 for _, status, _, _ in image_data if status == "Clean")
+    clean_images = sum(1 for _, status, _, _, _ in image_data if status == "Clean")
     dirty_images = total_images - clean_images
     cleanliness_percentage = (clean_images / total_images) * 100 if total_images > 0 else 0
 
     # Display results
     st.write("### Analysis Results:")
-    for file_name, status, edge_density, img in image_data:
+    for file_name, status, confidence, label, img in image_data:
         col1, col2 = st.columns([1, 3])
 
         # Show the uploaded image
@@ -153,7 +150,8 @@ if uploaded_files:
         with col2:
             st.write(f"**File Name:** {file_name}")
             st.write(f"**Surface Condition:** {status}")
-            st.write(f"**Edge Density (%):** {edge_density:.2f}")
+            st.write(f"**Confidence Score (%):** {confidence * 100:.2f}")
+            st.write(f"**Prediction Label:** {label}")
             conclusion = "Well-maintained" if status == "Clean" else "Requires cleaning"
             st.write(f"**Conclusion:** {conclusion}")
 
@@ -179,8 +177,3 @@ if uploaded_files:
     st.write(f"- **Clean Images:** {clean_images}")
     st.write(f"- **Dirty Images:** {dirty_images}")
     st.write(f"- **Cleanliness Percentage:** {cleanliness_percentage:.2f}%")
-
-    # Generate and display cleanliness trends chart
-    st.write("### Cleanliness Trends Chart:")
-    trends_chart = generate_cleanliness_chart(clean_images, dirty_images)
-    st.pyplot(trends_chart)
