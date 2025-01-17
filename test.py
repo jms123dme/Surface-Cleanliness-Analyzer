@@ -26,7 +26,7 @@ def analyze_surface_cleanliness(image):
     edge_density = np.sum(edges > 0) / edges.size * 100
     
     # Threshold for cleanliness
-    status = "Clean" if edge_density < 2.0 else "Dirty"
+    status = "Clean" if edge_density < 3.0 else "Dirty"  # Updated threshold to <3%
     return status, edge_density, edges
 
 # Function to generate a summary table with full borders and scoring
